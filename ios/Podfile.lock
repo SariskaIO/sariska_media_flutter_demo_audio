@@ -1,0 +1,41 @@
+PODS:
+  - Flutter (1.0.0)
+  - flutter_audio_output (0.0.1):
+    - Flutter
+  - permission_handler_apple (9.1.1):
+    - Flutter
+  - sariska-media-transport (1.1.8)
+  - sariska_media_flutter_sdk (0.0.1):
+    - Flutter
+    - sariska-media-transport
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - flutter_audio_output (from `.symlinks/plugins/flutter_audio_output/ios`)
+  - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
+  - sariska_media_flutter_sdk (from `.symlinks/plugins/sariska_media_flutter_sdk/ios`)
+
+SPEC REPOS:
+  trunk:
+    - sariska-media-transport
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  flutter_audio_output:
+    :path: ".symlinks/plugins/flutter_audio_output/ios"
+  permission_handler_apple:
+    :path: ".symlinks/plugins/permission_handler_apple/ios"
+  sariska_media_flutter_sdk:
+    :path: ".symlinks/plugins/sariska_media_flutter_sdk/ios"
+
+SPEC CHECKSUMS:
+  Flutter: f04841e97a9d0b0a8025694d0796dd46242b2854
+  flutter_audio_output: c09cf390073f4c2ebd2eeed1420e2e3ba46f9b5e
+  permission_handler_apple: e76247795d700c14ea09e3a2d8855d41ee80a2e6
+  sariska-media-transport: 86779466f8ea3f5ad1080a5a0eeea8c070f04ee2
+  sariska_media_flutter_sdk: ce0dc6fc12593c28528ce1d8781ee471ea117bb7
+
+PODFILE CHECKSUM: d82ec8d470f17aa9de5faebc934b186e2a6d250a
+
+COCOAPODS: 1.12.1
