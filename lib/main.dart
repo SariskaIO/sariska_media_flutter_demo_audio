@@ -1,125 +1,425 @@
+import 'dart:io';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_audio_output/flutter_audio_output.dart';
+import 'package:flutter_iconly/flutter_iconly.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:sariska_media_flutter_sdk/Conference.dart';
+import 'package:sariska_media_flutter_sdk/Connection.dart';
+import 'package:sariska_media_flutter_sdk/JitsiLocalTrack.dart';
+import 'package:sariska_media_flutter_sdk/JitsiRemoteTrack.dart';
+import 'package:sariska_media_flutter_sdk/SariskaMediaTransport.dart';
+import 'package:sariska_media_flutter_demo_audio/GenerateToken.dart';
+
+typedef void LocalTrackCallback(List<JitsiLocalTrack> tracks);
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    MaterialApp(
+      home: RoomNamePage(),
+      debugShowCheckedModeBanner: false,
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({Key? key, required this.roomName}) : super(key: key);
 
-  // This widget is the root of your application.
+  final String roomName;
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+  static late LocalTrackCallback localTrackCallback;
+}
+
+class _MyAppState extends State<MyApp> {
+  final _sariskaMediaTransport = SariskaMediaTransport();
+  String token = 'unknown';
+  String streamURL = '';
+  List<JitsiRemoteTrack> remoteTracks = [];
+  List<JitsiLocalTrack> localtracks = [];
+  late AudioInput _currentInput = const AudioInput("unknown", 0);
+  late List<AudioInput> _availableInputs = [];
+
+  JitsiLocalTrack? localTrack;
+  bool isAudioOn = true;
+  bool isSpeakerOn = false;
+
+  late Conference _conference;
+  late Connection _connection;
+
+  @override
+  void initState() {
+    super.initState();
+    initPlatformState();
+    init();
+  }
+
+  Future<void> init() async {
+    FlutterAudioOutput.setListener(() async {
+      await _getInput();
+      setState(() {});
+    });
+
+    await _getInput();
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  _getInput() async {
+    _currentInput = await FlutterAudioOutput.getCurrentOutput();
+    _availableInputs = await FlutterAudioOutput.getAvailableInputs();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Stack(
+          children: [
+            if (localTrack != null)
+              Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    color: Colors.black,
+                    child: const Icon(
+                      IconlyLight.profile,
+                      color: Colors.white,
+                      size: 100.0,
+                    ),
+                  )),
+            Positioned(
+              bottom: 140,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                height: 100,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: remoteTracks.length,
+                  itemBuilder: (BuildContext context, int index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 2.0, right: 2.0),
+                      child: Container(
+                        width: 120,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: index % 2 == 0
+                              ? Colors.deepPurple.withAlpha(100)
+                              : Colors.redAccent.withAlpha(100),
+                        ),
+                        child: Icon(
+                          IconlyLight.user3,
+                          color: index % 2 == 0
+                              ? Colors.deepPurple
+                              : Colors.redAccent,
+                          size: 20.0,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Material(
+                    borderRadius: BorderRadius.circular(30),
+                    clipBehavior: Clip.antiAlias,
+                    color: Colors.transparent,
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaY: 20,
+                        sigmaX: 20,
+                      ),
+                      child: InkWell(
+                        highlightColor: Colors.transparent,
+                        splashColor: Colors.transparent,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(30),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 20,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              buildCustomButton(
+                                onPressed: () {
+                                  setState(() {
+                                    for (JitsiLocalTrack track in localtracks) {
+                                      if (track.getType() == "audio") {
+                                        if (isAudioOn) {
+                                          track.mute();
+                                          isAudioOn = !isAudioOn;
+                                        } else {
+                                          track.unmute();
+                                          isAudioOn = !isAudioOn;
+                                        }
+                                        break;
+                                      }
+                                    }
+                                  });
+                                },
+                                icon: isAudioOn
+                                    ? IconlyLight.voice
+                                    : Icons.mic_off_outlined,
+                                color: Colors.transparent,
+                              ),
+                              buildEndCallButton(
+                                onPressed: () {
+                                  print("Ending call");
+                                  _conference.leave();
+                                  _connection.disconnect();
+                                  exit(0);
+                                },
+                              ),
+                              buildCustomButton(
+                                onPressed: () async {
+                                  toggleSpeaker();
+                                },
+                                icon: isSpeakerOn
+                                    ? IconlyLight.volumeUp
+                                    : IconlyBold.volumeOff,
+                                color: Colors.transparent,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.black,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
+  }
+
+  Future<void> initPlatformState() async {
+    try {
+      token = await generateToken();
+
+      _sariskaMediaTransport.initializeSdk();
+
+      setupLocalStream();
+
+      _connection = Connection(token, widget.roomName, false);
+
+      _connection.addEventListener("CONNECTION_ESTABLISHED", () {
+        _conference = _connection.initJitsiConference();
+
+        _conference.addEventListener("CONFERENCE_JOINED", () {
+          print("Conference joined from Swift and Android");
+          print(localtracks.length);
+          for (JitsiLocalTrack track in localtracks) {
+            print(track.getType());
+            _conference.addTrack(track);
+          }
+        });
+
+        _conference.addEventListener("TRACK_ADDED", (track) {
+          JitsiRemoteTrack remoteTrack = track;
+          for (JitsiLocalTrack track in localtracks) {
+            if (track.getStreamURL() == remoteTrack.getStreamURL()) {
+              return;
+            }
+          }
+          if (remoteTrack.getType() == "video") {
+            return;
+          }
+          streamURL = remoteTrack.getStreamURL();
+          replaceChild(remoteTrack);
+        });
+
+        _conference.join();
+      });
+
+      _connection.addEventListener("CONNECTION_FAILED", () {
+        print("Connection Failed");
+      });
+
+      _connection.addEventListener("CONNECTION_DISCONNECTED", () {
+        print("Connection Disconnected");
+      });
+
+      _connection.connect();
+
+      setState(() {});
+    } on PlatformException {
+      print("Failed to get platform version.");
+    }
+  }
+
+  void setupLocalStream() {
+    Map<String, dynamic> options = {};
+    options["audio"] = true;
+    options["video"] = false;
+
+    _sariskaMediaTransport.createLocalTracks(options, (tracks) {
+      print("Soniye");
+      localtracks = tracks;
+      for (JitsiLocalTrack track in localtracks) {
+        if (track.getType() == "audio") {
+          setState(() {
+            localTrack = track;
+          });
+        }
+      }
+    });
+  }
+
+  void replaceChild(JitsiRemoteTrack remoteTrack) {
+    setState(() {
+      remoteTracks.add(remoteTrack);
+    });
+  }
+
+  Widget buildCustomButton({
+    required VoidCallback onPressed,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.transparent,
+      ),
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+          ),
+          child: Icon(
+            icon,
+            color: Colors.white,
+            size: 30,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget buildEndCallButton({required VoidCallback onPressed}) {
+    return Container(
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.red,
+      ),
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: Container(
+          padding: const EdgeInsets.all(15),
+          child: const Icon(
+            Icons.call_end,
+            color: Colors.white,
+            size: 40,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void toggleSpeaker() async {
+    await _getInput();
+    if (_currentInput.port == AudioPort.speaker) {
+      isSpeakerOn = await FlutterAudioOutput.changeToReceiver();
+      setState(() {
+        isSpeakerOn = false;
+      });
+      print("Changed to Receiver: $isSpeakerOn");
+    } else {
+      isSpeakerOn = await FlutterAudioOutput.changeToSpeaker();
+      setState(() {
+        isSpeakerOn = true;
+      });
+      print("Changed to Speaker: $isSpeakerOn");
+    }
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class RoomNamePage extends StatefulWidget {
+  const RoomNamePage({Key? key}) : super(key: key);
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _RoomNamePageState createState() => _RoomNamePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _RoomNamePageState extends State<RoomNamePage> {
+  final TextEditingController _roomNameController = TextEditingController();
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    webViewMethod();
+  }
+
+  Future webViewMethod() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await Permission.microphone.request();
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+    return Material(
+      type: MaterialType.transparency, // or any other theme configuration
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Enter Room Name'),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextField(
+                controller: _roomNameController,
+                decoration: const InputDecoration(labelText: 'Room Name'),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final roomName = _roomNameController.text.trim();
+                  if (roomName.isNotEmpty) {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MyApp(roomName: roomName),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Enter Room'),
+              ),
+            ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
