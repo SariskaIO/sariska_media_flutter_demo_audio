@@ -173,9 +173,9 @@ class _MyAppState extends State<MyApp> {
                               ),
                               buildCustomButton(
                                 onPressed: () async {
-                                  if(isSpeakerOn){
+                                  if (isSpeakerOn) {
                                     toggleSpeaker(false);
-                                  }else{
+                                  } else {
                                     toggleSpeaker(true);
                                   }
                                 },
@@ -330,12 +330,13 @@ class _MyAppState extends State<MyApp> {
   }
 
   void toggleSpeaker(bool isSpeaker) async {
-     for(JitsiLocalTrack track in localtracks){
-       if(track.getType() == "audio"){
-         track.toggleSpeaker(isSpeaker);
-         isSpeakerOn = isSpeaker;
-       }
-     }
+    for (JitsiLocalTrack track in localtracks) {
+      if (track.getType() == "audio") {
+        track.toggleSpeaker(isSpeaker);
+        isSpeakerOn = isSpeaker;
+        setState(() {});
+      }
+    }
   }
 }
 
