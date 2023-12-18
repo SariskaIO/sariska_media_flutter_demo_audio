@@ -55,9 +55,13 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        _conference.leave();
+        _connection.disconnect();
+        return true;
+      },
+      child: Scaffold(
         body: Stack(
           children: [
             if (localTrack != null)
@@ -222,6 +226,18 @@ class _MyAppState extends State<MyApp> {
           }
         });
 
+        _conference.addEventListener("TRACK_REMOVED", (track) {
+          JitsiRemoteTrack remoteTrack = track;
+          for (JitsiRemoteTrack localRemoteTrack in remoteTracks) {
+            if (localRemoteTrack.getType() == remoteTrack.getType() &&
+                localRemoteTrack.getParticipantId() ==
+                    remoteTrack.getParticipantId()) {
+              removeChild(localRemoteTrack);
+              return;
+            }
+          }
+        });
+
         _conference.addEventListener("TRACK_ADDED", (track) {
           JitsiRemoteTrack remoteTrack = track;
           for (JitsiLocalTrack track in localtracks) {
@@ -261,7 +277,6 @@ class _MyAppState extends State<MyApp> {
     options["video"] = false;
 
     _sariskaMediaTransport.createLocalTracks(options, (tracks) {
-      print("Soniye");
       localtracks = tracks;
       for (JitsiLocalTrack track in localtracks) {
         if (track.getType() == "audio") {
@@ -276,6 +291,12 @@ class _MyAppState extends State<MyApp> {
   void replaceChild(JitsiRemoteTrack remoteTrack) {
     setState(() {
       remoteTracks.add(remoteTrack);
+    });
+  }
+
+  void removeChild(JitsiRemoteTrack remoteTrack) {
+    setState(() {
+      remoteTracks.remove(remoteTrack);
     });
   }
 
