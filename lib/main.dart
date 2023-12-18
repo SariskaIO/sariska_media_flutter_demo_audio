@@ -3,7 +3,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_audio_output/flutter_audio_output.dart';
 import 'package:flutter_iconly/flutter_iconly.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sariska_media_flutter_sdk/Conference.dart';
@@ -40,8 +39,6 @@ class _MyAppState extends State<MyApp> {
   String streamURL = '';
   List<JitsiRemoteTrack> remoteTracks = [];
   List<JitsiLocalTrack> localtracks = [];
-  late AudioInput _currentInput = const AudioInput("unknown", 0);
-  late List<AudioInput> _availableInputs = [];
 
   JitsiLocalTrack? localTrack;
   bool isAudioOn = true;
@@ -54,23 +51,6 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     initPlatformState();
-    init();
-  }
-
-  Future<void> init() async {
-    FlutterAudioOutput.setListener(() async {
-      await _getInput();
-      setState(() {});
-    });
-
-    await _getInput();
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  _getInput() async {
-    _currentInput = await FlutterAudioOutput.getCurrentOutput();
-    _availableInputs = await FlutterAudioOutput.getAvailableInputs();
   }
 
   @override
@@ -193,7 +173,11 @@ class _MyAppState extends State<MyApp> {
                               ),
                               buildCustomButton(
                                 onPressed: () async {
-                                  toggleSpeaker();
+                                  if(isSpeakerOn){
+                                    toggleSpeaker(false);
+                                  }else{
+                                    toggleSpeaker(true);
+                                  }
                                 },
                                 icon: isSpeakerOn
                                     ? IconlyLight.volumeUp
@@ -345,21 +329,13 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  void toggleSpeaker() async {
-    await _getInput();
-    if (_currentInput.port == AudioPort.speaker) {
-      isSpeakerOn = await FlutterAudioOutput.changeToReceiver();
-      setState(() {
-        isSpeakerOn = false;
-      });
-      print("Changed to Receiver: $isSpeakerOn");
-    } else {
-      isSpeakerOn = await FlutterAudioOutput.changeToSpeaker();
-      setState(() {
-        isSpeakerOn = true;
-      });
-      print("Changed to Speaker: $isSpeakerOn");
-    }
+  void toggleSpeaker(bool isSpeaker) async {
+     for(JitsiLocalTrack track in localtracks){
+       if(track.getType() == "audio"){
+         track.toggleSpeaker(isSpeaker);
+         isSpeakerOn = isSpeaker;
+       }
+     }
   }
 }
 
