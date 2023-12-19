@@ -59,7 +59,7 @@ class _MyAppState extends State<MyApp> {
       onWillPop: () async {
         _conference.leave();
         _connection.disconnect();
-        return true;
+        exit(0);
       },
       child: Scaffold(
         body: Stack(
